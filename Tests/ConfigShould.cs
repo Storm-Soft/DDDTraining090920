@@ -58,6 +58,18 @@ namespace DDDTraining.Tests
                                                           optionSelectedEvent.Option.Id == "A" &&
                                                           optionSelectedEvent.Model.Id == "1");
         }
+
+        [Fact]
+        public async Task Not_Raise_Option_C_When_Not_Available()
+        {
+            var eventStore = new EventStoreStub();
+            var config = new Config(eventStore);
+            await config.SelectModel1();
+            await config.SelectOption(new Option("C"));
+            Assert.Single(eventStore.GetEvents(), e => e is OptionSelectedEvent optionSelectedEvent);
+            var optionSelectedEvent = eventStore.GetEvents().First(e => e is OptionSelectedEvent optionSelectedEvent) as OptionSelectedEvent;
+            Assert.True(optionSelectedEvent.Option.Id != "C");
+        }
     }
 
     public class ModelSelectedEvent : Event
@@ -134,6 +146,11 @@ namespace DDDTraining.Tests
 
         public Task SelectOption(Option option)
         {
+            var lastAvailableEvent = localEvents.LastOrDefault(e => e is OptionAvailableEvent) as OptionAvailableEvent;
+            if (lastAvailableEvent == null ||
+               !lastAvailableEvent.Options.Contains(option))
+                return Task.CompletedTask;
+
             var lastSelectedEvent = localEvents.LastOrDefault(e => e is OptionSelectedEvent) as OptionSelectedEvent;
             if (lastSelectedEvent != null && lastSelectedEvent.Option.Equals(option))
                 return Task.CompletedTask;                
