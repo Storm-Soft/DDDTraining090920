@@ -99,6 +99,8 @@ namespace DDDTraining.Tests
         {
             Id = id;
         }
+
+        public override string ToString() => $"Id{Id}";
     }
 
     public class OptionSelectedEvent : Event
@@ -116,45 +118,73 @@ namespace DDDTraining.Tests
 
     public sealed class Config
     {
+        private sealed class ConfigAggregateState
+        {
+            public Option? SelectedOption { get; private set; }
+            public Model? SelectedModel { get; private set; }
+            public IList<Option> AvailableOptions { get; private set; } = Array.Empty<Option>();
+
+            public ConfigAggregateState(IEventStore store)
+            {
+                store.Register(HandleModelSelectedEvent);
+                store.Register(HandleOptionAvailableEvent);
+                store.Register(HandleOptionSelectedEvent);
+            }
+
+            private void HandleOptionSelectedEvent(Event e)
+            {
+                if (!(e is OptionSelectedEvent optionSelectedEvent))
+                    return;
+                SelectedOption = optionSelectedEvent.Option;
+            }
+
+            private void HandleOptionAvailableEvent(Event e)
+            {
+                if (!(e is OptionAvailableEvent optionAvailableEvent))
+                    return;
+                AvailableOptions = optionAvailableEvent.Options?.ToArray() ?? Array.Empty<Option>();
+            }
+
+            private void HandleModelSelectedEvent(Event e)
+            {
+                if (!(e is ModelSelectedEvent modelSelectedEvent))
+                    return;
+                SelectedModel = modelSelectedEvent.Model;
+            }
+        }
+
+        private readonly ConfigAggregateState configAggregateState;
         private readonly IEventStore store;
         private readonly Model model1 = new Model("1");
-
-        private readonly List<Event> localEvents = new List<Event>();
 
         public Config(IEventStore store)
         {
             this.store = store;
+            configAggregateState = new ConfigAggregateState(store);
         }
 
-        private void StoreEvent<TEvent>(TEvent @event) where TEvent : Event
-            => localEvents.Add(@event);
-
-        private async Task PublishEvents()
+        private async Task PublishEvents(IEnumerable<Event> eventsToPublish)
         {
-            foreach (var @event in localEvents)
+            foreach (var @event in eventsToPublish)
                 await store.Publish(@event);
         }
 
-        public async Task<Model> SelectModel1()
-        {
-            StoreEvent(new ModelSelectedEvent(model1));
-            StoreEvent(new OptionAvailableEvent(new[] { new Option("A"), new Option("B") }));
-            StoreEvent(new OptionSelectedEvent(model1, new Option("A")));
-            await PublishEvents();
-            return model1;
-        }
+        public Task SelectModel1()
+            => PublishEvents(new Event[]{
+                new ModelSelectedEvent(model1),
+                new OptionAvailableEvent(new[] { new Option("A"), new Option("B") }),
+                new OptionSelectedEvent(model1, new Option("A"))
+            });
+    
 
-        public Task SelectOption(Option option)
+        public async Task SelectOption(Option option)
         {
-            var lastAvailableEvent = localEvents.LastOrDefault(e => e is OptionAvailableEvent) as OptionAvailableEvent;
-            if (lastAvailableEvent == null ||
-               !lastAvailableEvent.Options.Contains(option))
-                return Task.CompletedTask;
-
-            var lastSelectedEvent = localEvents.LastOrDefault(e => e is OptionSelectedEvent) as OptionSelectedEvent;
-            if (lastSelectedEvent != null && lastSelectedEvent.Option.Equals(option))
-                return Task.CompletedTask;                
-            return store.Publish(new OptionSelectedEvent(model1, option));
+            if (!configAggregateState.AvailableOptions.Contains(option))
+                return;
+            if (configAggregateState.SelectedOption.HasValue && 
+                configAggregateState.SelectedOption.Value.Equals(option))
+                return;
+            await PublishEvents(new[] { new OptionSelectedEvent(model1, option) });
         }
     }
 
@@ -168,21 +198,38 @@ namespace DDDTraining.Tests
         }
     }
 
+    //public interface IAggregatePublisher
+    //{
+    //    Task Publish<TEvent>(TEvent @event) where TEvent : Event;
+    //}
+
     public interface IEventStore
     {
         Task Publish<TEvent>(TEvent @event) where TEvent : Event;
+        Task Register(Action<Event> eventHandler);
     }
+
     public class EventStoreStub : IEventStore
     {
         private readonly List<Event> events = new List<Event>();
 
+        private List<Action<Event>> handlers = new List<Action<Event>>();
+
         public Task Publish<TEvent>(TEvent @event) where TEvent : Event
         {
             events.Add(@event);
+            foreach (var eventHandler in handlers)
+                    eventHandler(@event);            
             return Task.CompletedTask;
         }
 
         public List<Event> GetEvents() => events;
+
+        public Task Register(Action<Event> eventHandler)
+        {
+           handlers.Add(eventHandler);
+            return Task.CompletedTask;
+        }
     }
 
     public abstract class Event
