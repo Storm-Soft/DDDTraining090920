@@ -34,6 +34,30 @@ namespace DDDTraining.Tests
                                                             optionSelectedEvent.Model.Id == "1");
 
         }
+
+        [Fact]
+        public async Task Raise_Option_B_When_A_Selected_And_Call_On_Selection_Option_B()
+        {
+            var eventStore = new EventStoreStub();
+            var config = new Config(eventStore);
+            await config.SelectModel1();
+            await config.SelectOption(new Option("B"));
+            Assert.Contains(eventStore.GetEvents(), e => e is OptionSelectedEvent optionSelectedEvent &&
+                                                          optionSelectedEvent.Option.Id == "B" &&
+                                                          optionSelectedEvent.Model.Id == "1");
+        }
+
+        [Fact]
+        public async Task Not_Raise_Option_A_When_A_Already_Selected()
+        {
+            var eventStore = new EventStoreStub();
+            var config = new Config(eventStore);
+            await config.SelectModel1();
+            await config.SelectOption(new Option("A"));
+            Assert.Single(eventStore.GetEvents(), e => e is OptionSelectedEvent optionSelectedEvent &&
+                                                          optionSelectedEvent.Option.Id == "A" &&
+                                                          optionSelectedEvent.Model.Id == "1");
+        }
     }
 
     public class ModelSelectedEvent : Event
@@ -83,17 +107,37 @@ namespace DDDTraining.Tests
         private readonly IEventStore store;
         private readonly Model model1 = new Model("1");
 
+        private readonly List<Event> localEvents = new List<Event>();
+
         public Config(IEventStore store)
         {
             this.store = store;
         }
 
+        private void StoreEvent<TEvent>(TEvent @event) where TEvent : Event
+            => localEvents.Add(@event);
+
+        private async Task PublishEvents()
+        {
+            foreach (var @event in localEvents)
+                await store.Publish(@event);
+        }
+
         public async Task<Model> SelectModel1()
         {
-            await store.Publish(new ModelSelectedEvent(model1));
-            await store.Publish(new OptionAvailableEvent(new[] { new Option("A"), new Option("B") }));
-            await store.Publish(new OptionSelectedEvent(model1, new Option("A")));
+            StoreEvent(new ModelSelectedEvent(model1));
+            StoreEvent(new OptionAvailableEvent(new[] { new Option("A"), new Option("B") }));
+            StoreEvent(new OptionSelectedEvent(model1, new Option("A")));
+            await PublishEvents();
             return model1;
+        }
+
+        public Task SelectOption(Option option)
+        {
+            var lastSelectedEvent = localEvents.LastOrDefault(e => e is OptionSelectedEvent) as OptionSelectedEvent;
+            if (lastSelectedEvent != null && lastSelectedEvent.Option.Equals(option))
+                return Task.CompletedTask;                
+            return store.Publish(new OptionSelectedEvent(model1, option));
         }
     }
 
