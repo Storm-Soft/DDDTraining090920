@@ -30,9 +30,9 @@ namespace DDDTraining.Tests
         public async Task Raise_Model_A_Event_Selected()
         {
             var config = new Config(CreateDefaultConfigState());
-            config.SelectModel1();
+           var events = config.SelectModel1();
 
-            Assert.Contains(config.GetUncommitedEvents(), e =>e is ModelSelectedEvent modelSelectedEvent &&
+            Assert.Contains(events, e =>e is ModelSelectedEvent modelSelectedEvent &&
                                                                 modelSelectedEvent.Model.Id == "1");
         }
 
@@ -40,11 +40,11 @@ namespace DDDTraining.Tests
         public async Task Raise_Option_A_when_A_And_B_Available_And_A_Selected()
         {          
             var config = new Config(CreateDefaultConfigState());
-            config.SelectModel1();
-            Assert.Contains(config.GetUncommitedEvents(), e => e is OptionAvailableEvent optionAvailableEvent &&
+            var events = config.SelectModel1();
+            Assert.Contains(events, e => e is OptionAvailableEvent optionAvailableEvent &&
                                                          optionAvailableEvent.Options.Any(option => option.Id == "A") &&
                                                          optionAvailableEvent.Options.Any(option => option.Id == "B"));
-            Assert.Contains(config.GetUncommitedEvents(), e => e is OptionSelectedEvent optionSelectedEvent &&
+            Assert.Contains(events, e => e is OptionSelectedEvent optionSelectedEvent &&
                                                             optionSelectedEvent.Option.Id == "A" && 
                                                             optionSelectedEvent.Model.Id == "1");
 
@@ -54,8 +54,8 @@ namespace DDDTraining.Tests
         public async Task Raise_Option_B_When_A_Selected_And_Call_On_Selection_Option_B()
         {
             var config = new Config(CreateStateWithModel1());
-            config.SelectOption(new Option("B"));
-            Assert.Contains(config.GetUncommitedEvents(), e => e is OptionSelectedEvent optionSelectedEvent &&
+            var events = config.SelectOption(new Option("B"));
+            Assert.Contains(events, e => e is OptionSelectedEvent optionSelectedEvent &&
                                                           optionSelectedEvent.Option.Id == "B" &&
                                                           optionSelectedEvent.Model.Id == "1");
         }
@@ -64,16 +64,16 @@ namespace DDDTraining.Tests
         public async Task Not_Raise_Option_A_When_A_Already_Selected()
         {
             var config = new Config(CreateStateWithModel1());
-            config.SelectOption(new Option("A"));
-            Assert.Empty(config.GetUncommitedEvents());
+            var events = config.SelectOption(new Option("A"));
+            Assert.Empty(events);
         }
 
         [Fact]
         public async Task Not_Raise_Option_C_When_Not_Available()
         {
             var config = new Config(CreateStateWithModel1());            
-            config.SelectOption(new Option("C"));
-            Assert.Empty(config.GetUncommitedEvents());
+            var events = config.SelectOption(new Option("C"));
+            Assert.Empty(events);
         }
     }
 
@@ -174,31 +174,31 @@ namespace DDDTraining.Tests
             configAggregateState = configState;
         }
 
-        public IEnumerable<Event> GetUncommitedEvents() => uncommitedEvents;
-        public void Commit() => uncommitedEvents.Clear();
+        //public IEnumerable<Event> GetUncommitedEvents() => uncommitedEvents;
+        //public void Commit() => uncommitedEvents.Clear();
 
-        private void PublishEvents(IEnumerable<Event> eventsToPublish)
-        {
-            foreach (var @event in eventsToPublish)
-                uncommitedEvents.Add(@event);
-        }
+        //private void AddPendingEvents(IEnumerable<Event> eventsToPublish)
+        //{
+        //    foreach (var @event in eventsToPublish)
+        //        uncommitedEvents.Add(@event);
+        //}
 
-        public void SelectModel1()
-            => PublishEvents(new Event[]{
+        public IEnumerable<Event> SelectModel1()
+            =>  new Event[]{
                 new ModelSelectedEvent(model1),
                 new OptionAvailableEvent(new[] { new Option("A"), new Option("B") }),
                 new OptionSelectedEvent(model1, new Option("A"))
-            });
-    
+            };
 
-        public void SelectOption(Option option)
+
+        public IEnumerable<Event> SelectOption(Option option)
         {
             if (!configAggregateState.AvailableOptions.Contains(option))
-                return;
-            if (configAggregateState.SelectedOption.HasValue && 
+                return Array.Empty<Event>();
+            if (configAggregateState.SelectedOption.HasValue &&
                 configAggregateState.SelectedOption.Value.Equals(option))
-                return;
-            PublishEvents(new[] { new OptionSelectedEvent(model1, option) });
+                return Array.Empty<Event>();
+            return new[] { new OptionSelectedEvent(model1, option) };
         }
     }
 
