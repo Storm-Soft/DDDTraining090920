@@ -127,23 +127,6 @@ namespace DDDTraining.Tests
             foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
             Assert.Equal(model1, foundSelected.Value);
         }
-
-        [Fact]
-        public async Task When_Publish_Event_On_Aggregate_Then_Projection_Is_Updated()
-        {
-            var eventStore = new EventStoreStub(new[] { new ModelSelectedEvent(UserProfileId1, new Model("2")) });
-            var eventBus = new EventBusStub(eventStore);
-            var projection = new ConfigListProjection(eventBus);
-            var commandHandler = new SelectModelCommandHandler(eventBus, eventStore);
-
-            var foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
-            Assert.Equal(default, foundSelected.Value);
-
-            await commandHandler.Execute(UserProfileId1);
-
-            foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
-            Assert.Equal(model1, foundSelected.Value);
-        }
     }
 
     public class ConfigListProjection
