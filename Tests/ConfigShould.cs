@@ -106,7 +106,7 @@ namespace DDDTraining.Tests
         }
     }
 
-    public class ConfigCommandWithProjectionShould
+    public class SelectModelCommandHandlerShould
     {
         private static readonly UserProfileId UserProfileId1 = new UserProfileId(Guid.NewGuid());
         private static readonly Model model1 = new Model("1");
@@ -115,8 +115,9 @@ namespace DDDTraining.Tests
         public async Task When_Publish_Event_On_Aggregate_Then_Projection_Is_Updated()
         {
             var eventBus = new EventBusStub();
+            var eventStore = new EventStoreStub();
             var projection = new ConfigListProjection(eventBus);
-            var commandHandler = new SelectModelCommandHandler(eventBus, Array.Empty<Event>());
+            var commandHandler = new SelectModelCommandHandler(eventBus, eventStore);
 
             var foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
             Assert.Equal(default, foundSelected.Value);
@@ -208,16 +209,17 @@ namespace DDDTraining.Tests
     class SelectModelCommandHandler
     {
         private readonly IEventBus eventBus;
-        private readonly IEnumerable<Event> previousEvents;
+        private readonly IEventStore eventStore;
 
-        public SelectModelCommandHandler(IEventBus eventBus, IEnumerable<Event> previousEvents)
+        public SelectModelCommandHandler(IEventBus eventBus, IEventStore eventStore)
         {
             this.eventBus = eventBus;
-            this.previousEvents = previousEvents;
+            this.eventStore = eventStore;
         }
 
         public async Task Execute(UserProfileId userProfileId)
-        {           
+        {
+            var previousEvents = await eventStore.LoadEvents(userProfileId);
             var config = new Config(userProfileId);            
             var events = config.SelectModel1(previousEvents);
             foreach (var @event in events)
@@ -320,6 +322,27 @@ namespace DDDTraining.Tests
         Task Subscribe(Action<Event> eventHandler);
     }
 
+    public interface IEventStore
+    {
+        Task<IEnumerable<Event>> LoadEvents(UserProfileId userProfileId);
+        Task PersistEvents(IEnumerable<Event> events);
+    }
+
+    public class EventStoreStub : IEventStore
+    {
+        private readonly IEnumerable<Event> playedEvents;
+
+        public EventStoreStub(IEnumerable<Event> playedEvents = null)
+        {
+            this.playedEvents = playedEvents ?? Array.Empty<Event>();
+        }
+
+        public Task<IEnumerable<Event>> LoadEvents(UserProfileId userProfileId)
+         => Task.FromResult(playedEvents.Where(x => x.UserId.Equals(userProfileId)));
+
+        public Task PersistEvents(IEnumerable<Event> events)
+        => Task.CompletedTask;
+    }
     public class EventBusStub : IEventBus
     {
         private readonly List<Event> events = new List<Event>();
