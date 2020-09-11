@@ -9,6 +9,8 @@ namespace DDDTraining.Tests
 {
     public class ConfigShould
     {
+        private static readonly UserProfileId UserProfileId1 = new UserProfileId(Guid.NewGuid());
+
         private IEnumerable<Event> InitializeDefaultConfigHistory()
             => Array.Empty<Event>();
 
@@ -18,16 +20,16 @@ namespace DDDTraining.Tests
             var optionA = new Option("A");
             return new Event[]
                 {
-                new ModelSelectedEvent(model1),
-                new OptionAvailableEvent(new []{ optionA, new Option("B")}),
-                new OptionSelectedEvent(model1, optionA)
+                new ModelSelectedEvent(UserProfileId1, model1),
+                new OptionAvailableEvent(UserProfileId1, new []{ optionA, new Option("B")}),
+                new OptionSelectedEvent(UserProfileId1, model1, optionA)
                 };
         }
 
         [Fact]
         public async Task Raise_Model_A_Event_Selected()
         {
-            var config = new Config();
+            var config = new Config(UserProfileId1);
             var events = config.SelectModel1(InitializeDefaultConfigHistory());
 
             Assert.Contains(events, e =>e is ModelSelectedEvent modelSelectedEvent &&
@@ -37,7 +39,7 @@ namespace DDDTraining.Tests
         [Fact(DisplayName ="Quand je choisis le model 1, j'ai bien les options A et B, et si ont choisit A on a un event sur A choisi")]
         public async Task Raise_Option_A_when_A_And_B_Available_And_A_Selected()
         {            
-            var config = new Config();
+            var config = new Config(UserProfileId1);
             var events = config.SelectModel1(InitializeDefaultConfigHistory());
             Assert.Contains(events, e => e is OptionAvailableEvent optionAvailableEvent &&
                                                          optionAvailableEvent.Options.Any(option => option.Id == "A") &&
@@ -51,7 +53,7 @@ namespace DDDTraining.Tests
         [Fact]
         public async Task Raise_Option_B_When_A_Selected_And_Call_On_Selection_Option_B()
         {
-            var config = new Config();
+            var config = new Config(UserProfileId1);
             var events = config.SelectOption(new Option("B"), InitializeEventStoreWithModel1());
             Assert.Contains(events, e => e is OptionSelectedEvent optionSelectedEvent &&
                                                           optionSelectedEvent.Option.Id == "B" &&
@@ -61,7 +63,7 @@ namespace DDDTraining.Tests
         [Fact]
         public async Task Not_Raise_Option_A_When_A_Already_Selected()
         {
-            var config = new Config();
+            var config = new Config(UserProfileId1);
             var events = config.SelectOption(new Option("A"), InitializeEventStoreWithModel1());
             Assert.Empty(events);
         }
@@ -69,18 +71,25 @@ namespace DDDTraining.Tests
         [Fact]
         public async Task Not_Raise_Option_C_When_Not_Available()
         {
-            var config = new Config();            
+            var config = new Config(UserProfileId1);            
             var events = config.SelectOption(new Option("C"), InitializeEventStoreWithModel1());
             Assert.Empty(events);
         }
     }
+
+    //public class ConfigListProjectionShould
+    //{
+    //    [Fact]
+    //    public void 
+    //}
     
 
     public class ModelSelectedEvent : Event
     {
         public Model Model { get; }
 
-        public ModelSelectedEvent(Model model)
+        public ModelSelectedEvent(UserProfileId userId, Model model)
+            : base(userId)
         {
             Model = model;
         }
@@ -90,7 +99,8 @@ namespace DDDTraining.Tests
     {
 
         public IEnumerable<Option> Options { get; }
-        public OptionAvailableEvent(IEnumerable<Option> options)
+        public OptionAvailableEvent(UserProfileId userId, IEnumerable<Option> options)
+            : base(userId)
         {
             Options = options;
         }
@@ -107,12 +117,21 @@ namespace DDDTraining.Tests
         public override string ToString() => $"Id{Id}";
     }
 
+    public struct UserProfileId
+    {
+        public Guid UserId { get; set; }
+        public UserProfileId(Guid userId)
+        {
+            UserId = userId;
+        }
+    }
     public class OptionSelectedEvent : Event
     {
         public Model Model { get; }
         public Option Option { get; }
 
-        public OptionSelectedEvent(Model model, Option option)
+        public OptionSelectedEvent(UserProfileId userId, Model model, Option option)
+            : base(userId)
         {
             Model = model;
             Option = option;
@@ -125,6 +144,8 @@ namespace DDDTraining.Tests
     {
         private readonly Model model1 = new Model("1");
         private readonly List<Event> uncommitedEvents = new List<Event>();
+        private readonly UserProfileId userProfileId;
+        
         public sealed class ConfigAggregateState
         {
             public Option? SelectedOption { get; private set; }
@@ -160,6 +181,10 @@ namespace DDDTraining.Tests
             => SelectedModel = e.Model;
         }
 
+        public Config(UserProfileId userProfileId)
+        {
+            this.userProfileId = userProfileId;
+        }
         //public IEnumerable<Event> GetUncommitedEvents() => uncommitedEvents;
         //public void Commit() => uncommitedEvents.Clear();
 
@@ -171,9 +196,9 @@ namespace DDDTraining.Tests
 
         public IEnumerable<Event> SelectModel1(IEnumerable<Event> previousEvents)
         => new Event[]{
-                new ModelSelectedEvent(model1),
-                new OptionAvailableEvent(new[] { new Option("A"), new Option("B") }),
-                new OptionSelectedEvent(model1, new Option("A"))
+                new ModelSelectedEvent(userProfileId, model1),
+                new OptionAvailableEvent(userProfileId, new[] { new Option("A"), new Option("B") }),
+                new OptionSelectedEvent(userProfileId, model1, new Option("A"))
             };
 
 
@@ -185,7 +210,7 @@ namespace DDDTraining.Tests
             if (previousState.SelectedOption.HasValue &&
                 previousState.SelectedOption.Value.Equals(option))
                 return Array.Empty<Event>();
-            return new[] { new OptionSelectedEvent(model1, option) };
+            return new[] { new OptionSelectedEvent(userProfileId, model1, option) };
         }
     }
 
@@ -241,6 +266,11 @@ namespace DDDTraining.Tests
 
     public abstract class Event
     {
+        public UserProfileId UserId { get; }
 
+        protected Event(UserProfileId userId)
+        {
+            UserId = userId;
+        }
     }
 }
