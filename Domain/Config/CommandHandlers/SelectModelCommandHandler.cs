@@ -19,7 +19,7 @@ namespace DDDTraining.Tests
             var config = new Config(userProfileId);            
             var events = config.SelectModel1(previousEvents);
             foreach (var @event in events)
-                await eventBus.Publish(@event);
+                await eventBus.Publish(events);
         }        
     }
 }

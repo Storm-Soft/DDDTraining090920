@@ -14,11 +14,12 @@ namespace DDDTraining.Tests
             this.store = store;
         }
 
-        public async Task Publish<TEvent>(TEvent @event) where TEvent : Event
+        public async Task Publish(IEnumerable<Event> events)
         {
-            await store.Persist(@event);
-            foreach (var eventHandler in handlers)
-                eventHandler(@event);
+            await store.Persist(events);
+            foreach(var @event in events)
+                foreach (var eventHandler in handlers)
+                    eventHandler(@event);
         }
 
         public Task Subscribe(Action<Event> eventHandler)

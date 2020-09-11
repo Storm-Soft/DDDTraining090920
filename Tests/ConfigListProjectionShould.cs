@@ -27,7 +27,7 @@ namespace DDDTraining.Tests
             //var events = InitializeEventHistory(UserProfileId1);
             var eventBus = new EventBusStub(new EventStoreStub());
             var projection = new ConfigListProjection(eventBus);
-            await eventBus.Publish(new ModelSelectedEvent(UserProfileId1, model1));            
+            await eventBus.Publish(new[] { new ModelSelectedEvent(UserProfileId1, model1) });            
 
             var foundModel = projection.GetModelsByUserProfiles().FirstOrDefault(model => model.Key.Equals(UserProfileId1)).Value;
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace DDDTraining.Tests
@@ -10,7 +11,7 @@ namespace DDDTraining.Tests
 
     public interface IEventBus
     {
-        Task Publish<TEvent>(TEvent @event) where TEvent : Event;
+        Task Publish(IEnumerable<Event> events);
         Task Subscribe(Action<Event> eventHandler);
     }
 }
