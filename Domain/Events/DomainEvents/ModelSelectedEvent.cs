@@ -2,8 +2,8 @@
 {
     public struct ModelSelectedEvent : IEvent
     {
-        public UserProfileId UserId { get; private set; }
-        public Model Model { get; private set; }
+        public UserProfileId UserId { get;  }
+        public Model Model { get;  }
        
         public ModelSelectedEvent(UserProfileId userId, Model model)
         {

@@ -9,6 +9,7 @@ namespace DDDTraining.Tests
 {
     public class StoredEvent
     {
+        public long Position { get; set; }
         public string Type { get; set; }
         public string Payload { get; set; }
     }
@@ -17,30 +18,35 @@ namespace DDDTraining.Tests
     {
         public const string StorageFile = "storage.json";
         private readonly IList<IEvent> playedEvents = new List<IEvent>();
-        
+
+        private long currentPosition = 0;
+
         public EventStore()
         {
-            this.playedEvents = LoadEvents();
+            playedEvents = LoadEvents();
         }
-        
+
         private IList<IEvent> LoadEvents()
         {
             if (!File.Exists(StorageFile))
                 return new List<IEvent>();
             var fileContent = File.ReadAllLines(StorageFile);
-            return fileContent.Select(DeserializeEvent)
-                              .ToList();
+            var storedEvents = fileContent.Select(serializedDto => JsonConvert.DeserializeObject<StoredEvent>(serializedDto))
+                               .OrderBy(serializedEvent => serializedEvent.Position)
+                               .ToList();
+            currentPosition = storedEvents.LastOrDefault()?.Position ?? 0;
+            return storedEvents.Select(DeserializeEvent)
+                               .ToList();
         }
 
-        private IEvent DeserializeEvent(string serializedEvent)
+        private IEvent DeserializeEvent(StoredEvent serializedEvent)
         {
-            var deserializedEvent = JsonConvert.DeserializeObject<StoredEvent>(serializedEvent);
-            if (deserializedEvent.Type == typeof(ModelSelectedEvent).Name)
-                return JsonConvert.DeserializeObject<ModelSelectedEvent>(deserializedEvent.Payload);
-            if (deserializedEvent.Type == typeof(OptionSelectedEvent).Name)
-                return JsonConvert.DeserializeObject<OptionSelectedEvent>(deserializedEvent.Payload);
-            if (deserializedEvent.Type == typeof(OptionAvailableEvent).Name)
-                return JsonConvert.DeserializeObject<OptionAvailableEvent>(deserializedEvent.Payload);
+            if (serializedEvent.Type == typeof(ModelSelectedEvent).Name)
+                return JsonConvert.DeserializeObject<ModelSelectedEventDto>(serializedEvent.Payload).ToDomain();
+            if (serializedEvent.Type == typeof(OptionSelectedEvent).Name)
+                return JsonConvert.DeserializeObject<OptionSelectedEventDto>(serializedEvent.Payload).ToDomain();
+            if (serializedEvent.Type == typeof(OptionAvailableEvent).Name)
+                return JsonConvert.DeserializeObject<OptionAvailableEventDto>(serializedEvent.Payload).ToDomain();
             throw new NotSupportedException("Type d'evenement non supporté");
         }
 
@@ -51,9 +57,10 @@ namespace DDDTraining.Tests
             => File.AppendAllLinesAsync(StorageFile, events.Select(GetStoredEvent)
                                                            .Select(storedEvent => JsonConvert.SerializeObject(storedEvent)));
 
-        private static StoredEvent GetStoredEvent(IEvent @event)
+        private StoredEvent GetStoredEvent(IEvent @event)
              => new StoredEvent
              {
+                 Position = currentPosition++,
                  Type = @event.GetType().Name,
                  Payload = JsonConvert.SerializeObject(@event)
              };
