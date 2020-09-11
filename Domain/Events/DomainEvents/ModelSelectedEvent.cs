@@ -1,12 +1,13 @@
 ﻿namespace DDDTraining.Tests
 {
-    public class ModelSelectedEvent : Event
+    public struct ModelSelectedEvent : IEvent
     {
-        public Model Model { get; }
-
+        public UserProfileId UserId { get; private set; }
+        public Model Model { get; private set; }
+       
         public ModelSelectedEvent(UserProfileId userId, Model model)
-            : base(userId)
         {
+            UserId = userId;
             Model = model;
         }
 

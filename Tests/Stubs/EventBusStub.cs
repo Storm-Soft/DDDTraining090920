@@ -7,14 +7,14 @@ namespace DDDTraining.Tests
     public class EventBusStub : IEventBus
     {
         private readonly IEventStore store;
-        private List<Action<Event>> handlers = new List<Action<Event>>();
+        private List<Action<IEvent>> handlers = new List<Action<IEvent>>();
 
         public EventBusStub(IEventStore store)
         {
             this.store = store;
         }
 
-        public async Task Publish(IEnumerable<Event> events)
+        public async Task Publish(IEnumerable<IEvent> events)
         {
             await store.Persist(events);
             foreach(var @event in events)
@@ -22,7 +22,7 @@ namespace DDDTraining.Tests
                     eventHandler(@event);
         }
 
-        public Task Subscribe(Action<Event> eventHandler)
+        public Task Subscribe(Action<IEvent> eventHandler)
         {
            handlers.Add(eventHandler);
             return Task.CompletedTask;

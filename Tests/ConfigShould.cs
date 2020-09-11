@@ -11,14 +11,14 @@ namespace DDDTraining.Tests
     {
         private static readonly UserProfileId UserProfileId1 = new UserProfileId(Guid.NewGuid());
 
-        private IEnumerable<Event> InitializeDefaultConfigHistory()
-            => Array.Empty<Event>();
+        private IEnumerable<IEvent> InitializeDefaultConfigHistory()
+            => Array.Empty<IEvent>();
 
-        private IEnumerable<Event> InitializeEventStoreWithModel1()
+        private IEnumerable<IEvent> InitializeEventStoreWithModel1()
         {
             var model1 = new Model("1");
             var optionA = new Option("A");
-            return new Event[]
+            return new IEvent[]
                 {
                 new ModelSelectedEvent(UserProfileId1, model1),
                 new OptionAvailableEvent(UserProfileId1, new []{ optionA, new Option("B")}),

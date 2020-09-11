@@ -2,7 +2,7 @@
 {
     public struct Model
     {
-        public string Id { get; }
+        public string Id { get; private set; }
         
         public Model(string id)
         {

@@ -2,13 +2,13 @@
 
 namespace DDDTraining.Tests
 {
-    public class OptionAvailableEvent : Event
+    public struct OptionAvailableEvent : IEvent
     {
-
+        public UserProfileId UserId { get; }
         public IEnumerable<Option> Options { get; }
         public OptionAvailableEvent(UserProfileId userId, IEnumerable<Option> options)
-            : base(userId)
         {
+            UserId = userId;
             Options = options;
         }
     }

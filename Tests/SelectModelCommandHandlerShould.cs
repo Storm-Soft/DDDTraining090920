@@ -13,7 +13,7 @@ namespace DDDTraining.Tests
         [Fact]
         public async Task When_Publish_Event_On_Aggregate_Then_Projection_Is_Updated()
         {
-            var eventStore = new EventStoreStub();
+            var eventStore = new EventStore();
             var eventBus = new EventBusStub(eventStore);
             var projection = new ConfigListProjection(eventBus);
             var commandHandler = new SelectModelCommandHandler(eventBus, eventStore);

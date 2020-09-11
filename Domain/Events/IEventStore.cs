@@ -5,7 +5,7 @@ namespace DDDTraining.Tests
 {
     public interface IEventStore
     {
-        Task<IEnumerable<Event>> LoadEvents(UserProfileId userProfileId);
-        Task Persist(IEnumerable<Event> events);
+        Task<IEnumerable<IEvent>> LoadEvents(UserProfileId userProfileId);
+        Task Persist(IEnumerable<IEvent> events);
     }
 }

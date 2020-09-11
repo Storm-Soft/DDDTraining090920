@@ -7,17 +7,17 @@ namespace DDDTraining.Tests
 {
     public class EventStoreStub : IEventStore
     {
-        private readonly IEnumerable<Event> playedEvents;
+        private readonly IEnumerable<IEvent> playedEvents;
 
-        public EventStoreStub(IEnumerable<Event> playedEvents = null)
+        public EventStoreStub(IEnumerable<IEvent> playedEvents = null)
         {
-            this.playedEvents = playedEvents ?? Array.Empty<Event>();
+            this.playedEvents = playedEvents ?? Array.Empty<IEvent>();
         }
 
-        public Task<IEnumerable<Event>> LoadEvents(UserProfileId userProfileId)
+        public Task<IEnumerable<IEvent>> LoadEvents(UserProfileId userProfileId)
          => Task.FromResult(playedEvents.Where(x => x.UserId.Equals(userProfileId)));
 
-        public Task Persist(IEnumerable<Event> events)
+        public Task Persist(IEnumerable<IEvent> events)
             => Task.CompletedTask;
     }
 }

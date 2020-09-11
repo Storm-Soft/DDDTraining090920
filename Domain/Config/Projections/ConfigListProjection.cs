@@ -11,7 +11,7 @@ namespace DDDTraining.Tests
             eventBus.Subscribe(Apply);
         }
 
-        private void Apply(Event @event)
+        private void Apply(IEvent @event)
         {
             switch(@event)
             {

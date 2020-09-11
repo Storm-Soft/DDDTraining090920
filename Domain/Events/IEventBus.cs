@@ -11,7 +11,7 @@ namespace DDDTraining.Tests
 
     public interface IEventBus
     {
-        Task Publish(IEnumerable<Event> events);
-        Task Subscribe(Action<Event> eventHandler);
+        Task Publish(IEnumerable<IEvent> events);
+        Task Subscribe(Action<IEvent> eventHandler);
     }
 }

@@ -7,7 +7,7 @@ namespace DDDTraining.Tests
     public sealed class Config
     {
         private readonly Model model1 = new Model("1");
-        private readonly List<Event> uncommitedEvents = new List<Event>();
+        private readonly List<IEvent> uncommitedEvents = new List<IEvent>();
         private readonly UserProfileId userProfileId;
         
         public sealed class ConfigAggregateState
@@ -16,7 +16,7 @@ namespace DDDTraining.Tests
             public Model? SelectedModel { get; private set; }
             public IList<Option> AvailableOptions { get; private set; } = Array.Empty<Option>();
 
-            public ConfigAggregateState(IEnumerable<Event> events)
+            public ConfigAggregateState(IEnumerable<IEvent> events)
             {
                 foreach (var @event in events)
                 {
@@ -58,23 +58,23 @@ namespace DDDTraining.Tests
         //        uncommitedEvents.Add(@event);
         //}
 
-        public IEnumerable<Event> SelectModel1(IEnumerable<Event> previousEvents)
-        => new Event[]{
+        public IEnumerable<IEvent> SelectModel1(IEnumerable<IEvent> previousEvents)
+        => new IEvent[]{
                 new ModelSelectedEvent(userProfileId, model1),
                 new OptionAvailableEvent(userProfileId, new[] { new Option("A"), new Option("B") }),
                 new OptionSelectedEvent(userProfileId, model1, new Option("A"))
             };
 
 
-        public IEnumerable<Event> SelectOption(Option option, IEnumerable<Event> previousEvents)
+        public IEnumerable<IEvent> SelectOption(Option option, IEnumerable<IEvent> previousEvents)
         {
             var previousState = new ConfigAggregateState(previousEvents);
             if (!previousState.AvailableOptions.Contains(option))
-                return Array.Empty<Event>();
+                return Array.Empty<IEvent>();
             if (previousState.SelectedOption.HasValue &&
                 previousState.SelectedOption.Value.Equals(option))
-                return Array.Empty<Event>();
-            return new[] { new OptionSelectedEvent(userProfileId, model1, option) };
+                return Array.Empty<IEvent>();
+            return new IEvent[] { new OptionSelectedEvent(userProfileId, model1, option) };
         }
     }
 }
