@@ -9,28 +9,26 @@ namespace DDDTraining.Tests
 {
     public class ConfigShould
     {
-        //private EventStoreStub InitializeEventStoreWithModel1()
-        //{
-        //    var model1 = new Model("1");
-        //    var optionA = new Option("A");
-        //    return new EventStoreStub(new Event[]
-        //       {
-        //        new ModelSelectedEvent(model1),
-        //        new OptionAvailableEvent(new []{ optionA, new Option("B")}),
-        //        new OptionSelectedEvent(model1, optionA)
-        //       });
-        //}
+        private IEnumerable<Event> InitializeDefaultConfigHistory()
+            => Array.Empty<Event>();
 
-        private ConfigAggregateState CreateDefaultConfigState()
-            => new ConfigAggregateState(null, null, null, new EventStoreStub());
-        private ConfigAggregateState CreateStateWithModel1()
-            => new ConfigAggregateState(new Option("A"), new Model("1"), new[] { new Option("A"), new Option("B") }, new EventStoreStub());
+        private IEnumerable<Event> InitializeEventStoreWithModel1()
+        {
+            var model1 = new Model("1");
+            var optionA = new Option("A");
+            return new Event[]
+                {
+                new ModelSelectedEvent(model1),
+                new OptionAvailableEvent(new []{ optionA, new Option("B")}),
+                new OptionSelectedEvent(model1, optionA)
+                };
+        }
 
         [Fact]
         public async Task Raise_Model_A_Event_Selected()
         {
-            var config = new Config(CreateDefaultConfigState());
-           var events = config.SelectModel1();
+            var config = new Config();
+            var events = config.SelectModel1(InitializeDefaultConfigHistory());
 
             Assert.Contains(events, e =>e is ModelSelectedEvent modelSelectedEvent &&
                                                                 modelSelectedEvent.Model.Id == "1");
@@ -38,9 +36,9 @@ namespace DDDTraining.Tests
 
         [Fact(DisplayName ="Quand je choisis le model 1, j'ai bien les options A et B, et si ont choisit A on a un event sur A choisi")]
         public async Task Raise_Option_A_when_A_And_B_Available_And_A_Selected()
-        {          
-            var config = new Config(CreateDefaultConfigState());
-            var events = config.SelectModel1();
+        {            
+            var config = new Config();
+            var events = config.SelectModel1(InitializeDefaultConfigHistory());
             Assert.Contains(events, e => e is OptionAvailableEvent optionAvailableEvent &&
                                                          optionAvailableEvent.Options.Any(option => option.Id == "A") &&
                                                          optionAvailableEvent.Options.Any(option => option.Id == "B"));
@@ -53,8 +51,8 @@ namespace DDDTraining.Tests
         [Fact]
         public async Task Raise_Option_B_When_A_Selected_And_Call_On_Selection_Option_B()
         {
-            var config = new Config(CreateStateWithModel1());
-            var events = config.SelectOption(new Option("B"));
+            var config = new Config();
+            var events = config.SelectOption(new Option("B"), InitializeEventStoreWithModel1());
             Assert.Contains(events, e => e is OptionSelectedEvent optionSelectedEvent &&
                                                           optionSelectedEvent.Option.Id == "B" &&
                                                           optionSelectedEvent.Model.Id == "1");
@@ -63,19 +61,20 @@ namespace DDDTraining.Tests
         [Fact]
         public async Task Not_Raise_Option_A_When_A_Already_Selected()
         {
-            var config = new Config(CreateStateWithModel1());
-            var events = config.SelectOption(new Option("A"));
+            var config = new Config();
+            var events = config.SelectOption(new Option("A"), InitializeEventStoreWithModel1());
             Assert.Empty(events);
         }
 
         [Fact]
         public async Task Not_Raise_Option_C_When_Not_Available()
         {
-            var config = new Config(CreateStateWithModel1());            
-            var events = config.SelectOption(new Option("C"));
+            var config = new Config();            
+            var events = config.SelectOption(new Option("C"), InitializeEventStoreWithModel1());
             Assert.Empty(events);
         }
     }
+    
 
     public class ModelSelectedEvent : Event
     {
@@ -121,57 +120,44 @@ namespace DDDTraining.Tests
 
     }
 
-    public sealed class ConfigAggregateState
-    {
-        public Option? SelectedOption { get; private set; }
-        public Model? SelectedModel { get; private set; }
-        public IList<Option> AvailableOptions { get; private set; } = Array.Empty<Option>();
-
-        public ConfigAggregateState(Option? selectedOption, 
-            Model? selectedModel, 
-            IList<Option> availableOptions,
-            IEventStore store)
-        {
-            SelectedOption = selectedOption;
-            SelectedModel = selectedModel;
-            AvailableOptions = availableOptions;
-            store.Register(HandleModelSelectedEvent);
-            store.Register(HandleOptionAvailableEvent);
-            store.Register(HandleOptionSelectedEvent);
-        }
-
-        private void HandleOptionSelectedEvent(Event e)
-        {
-            if (!(e is OptionSelectedEvent optionSelectedEvent))
-                return;
-            SelectedOption = optionSelectedEvent.Option;
-        }
-
-        private void HandleOptionAvailableEvent(Event e)
-        {
-            if (!(e is OptionAvailableEvent optionAvailableEvent))
-                return;
-            AvailableOptions = optionAvailableEvent.Options?.ToArray() ?? Array.Empty<Option>();
-        }
-
-        private void HandleModelSelectedEvent(Event e)
-        {
-            if (!(e is ModelSelectedEvent modelSelectedEvent))
-                return;
-            SelectedModel = modelSelectedEvent.Model;
-        }
-    }
+    
     public sealed class Config
     {
-        
-
-        private readonly ConfigAggregateState configAggregateState;
         private readonly Model model1 = new Model("1");
         private readonly List<Event> uncommitedEvents = new List<Event>();
-
-        public Config(ConfigAggregateState configState)
+        public sealed class ConfigAggregateState
         {
-            configAggregateState = configState;
+            public Option? SelectedOption { get; private set; }
+            public Model? SelectedModel { get; private set; }
+            public IList<Option> AvailableOptions { get; private set; } = Array.Empty<Option>();
+
+            public ConfigAggregateState(IEnumerable<Event> events)
+            {
+                foreach (var @event in events)
+                {
+                    switch (@event)
+                    {
+                        case ModelSelectedEvent modelSelectedEvent:
+                            HandleModelSelectedEvent(modelSelectedEvent);
+                            break;
+                        case OptionSelectedEvent optionSelectedEvent:
+                            HandleOptionSelectedEvent(optionSelectedEvent);
+                            break;
+                        case OptionAvailableEvent availableOptionEvent:
+                            HandleOptionAvailableEvent(availableOptionEvent);
+                            break;
+                    }
+                }
+            }
+
+            private void HandleOptionSelectedEvent(OptionSelectedEvent e)
+                => SelectedOption = e.Option;
+            
+            private void HandleOptionAvailableEvent(OptionAvailableEvent e)
+            => AvailableOptions = e.Options?.ToArray() ?? Array.Empty<Option>();
+
+            private void HandleModelSelectedEvent(ModelSelectedEvent e)
+            => SelectedModel = e.Model;
         }
 
         //public IEnumerable<Event> GetUncommitedEvents() => uncommitedEvents;
@@ -183,20 +169,21 @@ namespace DDDTraining.Tests
         //        uncommitedEvents.Add(@event);
         //}
 
-        public IEnumerable<Event> SelectModel1()
-            =>  new Event[]{
+        public IEnumerable<Event> SelectModel1(IEnumerable<Event> previousEvents)
+        => new Event[]{
                 new ModelSelectedEvent(model1),
                 new OptionAvailableEvent(new[] { new Option("A"), new Option("B") }),
                 new OptionSelectedEvent(model1, new Option("A"))
             };
 
 
-        public IEnumerable<Event> SelectOption(Option option)
+        public IEnumerable<Event> SelectOption(Option option, IEnumerable<Event> previousEvents)
         {
-            if (!configAggregateState.AvailableOptions.Contains(option))
+            var previousState = new ConfigAggregateState(previousEvents);
+            if (!previousState.AvailableOptions.Contains(option))
                 return Array.Empty<Event>();
-            if (configAggregateState.SelectedOption.HasValue &&
-                configAggregateState.SelectedOption.Value.Equals(option))
+            if (previousState.SelectedOption.HasValue &&
+                previousState.SelectedOption.Value.Equals(option))
                 return Array.Empty<Event>();
             return new[] { new OptionSelectedEvent(model1, option) };
         }
