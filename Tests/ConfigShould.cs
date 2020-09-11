@@ -96,7 +96,7 @@ namespace DDDTraining.Tests
         public async Task When_A_Model_Is_Selected_Projection_Is_Updated()
         {
             //var events = InitializeEventHistory(UserProfileId1);
-            var eventBus = new EventBusStub();
+            var eventBus = new EventBusStub(new EventStoreStub());
             var projection = new ConfigListProjection(eventBus);
             await eventBus.Publish(new ModelSelectedEvent(UserProfileId1, model1));            
 
@@ -114,8 +114,8 @@ namespace DDDTraining.Tests
         [Fact]
         public async Task When_Publish_Event_On_Aggregate_Then_Projection_Is_Updated()
         {
-            var eventBus = new EventBusStub();
             var eventStore = new EventStoreStub();
+            var eventBus = new EventBusStub(eventStore);
             var projection = new ConfigListProjection(eventBus);
             var commandHandler = new SelectModelCommandHandler(eventBus, eventStore);
 
@@ -127,15 +127,32 @@ namespace DDDTraining.Tests
             foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
             Assert.Equal(model1, foundSelected.Value);
         }
+
+        [Fact]
+        public async Task When_Publish_Event_On_Aggregate_Then_Projection_Is_Updated()
+        {
+            var eventStore = new EventStoreStub(new[] { new ModelSelectedEvent(UserProfileId1, new Model("2")) });
+            var eventBus = new EventBusStub(eventStore);
+            var projection = new ConfigListProjection(eventBus);
+            var commandHandler = new SelectModelCommandHandler(eventBus, eventStore);
+
+            var foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
+            Assert.Equal(default, foundSelected.Value);
+
+            await commandHandler.Execute(UserProfileId1);
+
+            foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
+            Assert.Equal(model1, foundSelected.Value);
+        }
     }
 
     public class ConfigListProjection
     {
         private readonly Dictionary<UserProfileId,Model> selectedModels = new Dictionary<UserProfileId, Model>();
 
-        public ConfigListProjection(IEventBus store)
+        public ConfigListProjection(IEventBus eventBus)
         {
-            store.Subscribe(Apply);
+            eventBus.Subscribe(Apply);
         }
 
         private void Apply(Event @event)
@@ -325,7 +342,7 @@ namespace DDDTraining.Tests
     public interface IEventStore
     {
         Task<IEnumerable<Event>> LoadEvents(UserProfileId userProfileId);
-        Task PersistEvents(IEnumerable<Event> events);
+        Task Persist(Event @event);
     }
 
     public class EventStoreStub : IEventStore
@@ -340,30 +357,25 @@ namespace DDDTraining.Tests
         public Task<IEnumerable<Event>> LoadEvents(UserProfileId userProfileId)
          => Task.FromResult(playedEvents.Where(x => x.UserId.Equals(userProfileId)));
 
-        public Task PersistEvents(IEnumerable<Event> events)
-        => Task.CompletedTask;
+        public Task Persist(Event @event)
+            => Task.CompletedTask;
     }
     public class EventBusStub : IEventBus
     {
-        private readonly List<Event> events = new List<Event>();
-
+        private readonly IEventStore store;
         private List<Action<Event>> handlers = new List<Action<Event>>();
 
-        public EventBusStub(IEnumerable<Event> alreadyPlayedEvents=null)
+        public EventBusStub(IEventStore store)
         {
-            foreach (var @event in (alreadyPlayedEvents ?? Enumerable.Empty<Event>()))
-                events.Add(@event);
+            this.store = store;
         }
 
-        public Task Publish<TEvent>(TEvent @event) where TEvent : Event
+        public async Task Publish<TEvent>(TEvent @event) where TEvent : Event
         {
-            events.Add(@event);
+            await store.Persist(@event);
             foreach (var eventHandler in handlers)
-                    eventHandler(@event);            
-            return Task.CompletedTask;
+                eventHandler(@event);
         }
-
-        public List<Event> GetEvents() => events;
 
         public Task Subscribe(Action<Event> eventHandler)
         {
