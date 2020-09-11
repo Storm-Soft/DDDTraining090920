@@ -93,11 +93,12 @@ namespace DDDTraining.Tests
                 };
         }
         [Fact]
-        public void When_A_Model_Is_Selected_Projection_Is_Updated()
+        public async Task When_A_Model_Is_Selected_Projection_Is_Updated()
         {
             //var events = InitializeEventHistory(UserProfileId1);
-            var projection = new ConfigListProjection();
-            projection.Apply(new ModelSelectedEvent(UserProfileId1, model1));
+            var eventBus = new EventBusStub();
+            var projection = new ConfigListProjection(eventBus);
+            await eventBus.Publish(new ModelSelectedEvent(UserProfileId1, model1));            
 
             var foundModel = projection.GetModelsByUserProfiles().FirstOrDefault(model => model.Key.Equals(UserProfileId1)).Value;
 
@@ -105,11 +106,38 @@ namespace DDDTraining.Tests
         }
     }
 
+    public class ConfigCommandWithProjectionShould
+    {
+        private static readonly UserProfileId UserProfileId1 = new UserProfileId(Guid.NewGuid());
+        private static readonly Model model1 = new Model("1");
+
+        [Fact]
+        public async Task When_Publish_Event_On_Aggregate_Then_Projection_Is_Updated()
+        {
+            var eventBus = new EventBusStub();
+            var projection = new ConfigListProjection(eventBus);
+            var commandHandler = new SelectModelCommandHandler(eventBus, Array.Empty<Event>());
+
+            var foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
+            Assert.Equal(default, foundSelected.Value);
+
+            await commandHandler.Execute(UserProfileId1);
+            
+            foundSelected = projection.GetModelsByUserProfiles().FirstOrDefault();
+            Assert.Equal(model1, foundSelected.Value);
+        }
+    }
+
     public class ConfigListProjection
     {
         private readonly Dictionary<UserProfileId,Model> selectedModels = new Dictionary<UserProfileId, Model>();
 
-        public void Apply(Event @event)
+        public ConfigListProjection(IEventBus store)
+        {
+            store.Subscribe(Apply);
+        }
+
+        private void Apply(Event @event)
         {
             switch(@event)
             {
@@ -177,7 +205,26 @@ namespace DDDTraining.Tests
 
     }
 
-    
+    class SelectModelCommandHandler
+    {
+        private readonly IEventBus eventBus;
+        private readonly IEnumerable<Event> previousEvents;
+
+        public SelectModelCommandHandler(IEventBus eventBus, IEnumerable<Event> previousEvents)
+        {
+            this.eventBus = eventBus;
+            this.previousEvents = previousEvents;
+        }
+
+        public async Task Execute(UserProfileId userProfileId)
+        {           
+            var config = new Config(userProfileId);            
+            var events = config.SelectModel1(previousEvents);
+            foreach (var @event in events)
+                await eventBus.Publish(@event);
+        }        
+    }
+
     public sealed class Config
     {
         private readonly Model model1 = new Model("1");
@@ -267,19 +314,19 @@ namespace DDDTraining.Tests
     //    Task Publish<TEvent>(TEvent @event) where TEvent : Event;
     //}
 
-    public interface IEventStore
+    public interface IEventBus
     {
         Task Publish<TEvent>(TEvent @event) where TEvent : Event;
-        Task Register(Action<Event> eventHandler);
+        Task Subscribe(Action<Event> eventHandler);
     }
 
-    public class EventStoreStub : IEventStore
+    public class EventBusStub : IEventBus
     {
         private readonly List<Event> events = new List<Event>();
 
         private List<Action<Event>> handlers = new List<Action<Event>>();
 
-        public EventStoreStub(IEnumerable<Event> alreadyPlayedEvents=null)
+        public EventBusStub(IEnumerable<Event> alreadyPlayedEvents=null)
         {
             foreach (var @event in (alreadyPlayedEvents ?? Enumerable.Empty<Event>()))
                 events.Add(@event);
@@ -295,7 +342,7 @@ namespace DDDTraining.Tests
 
         public List<Event> GetEvents() => events;
 
-        public Task Register(Action<Event> eventHandler)
+        public Task Subscribe(Action<Event> eventHandler)
         {
            handlers.Add(eventHandler);
             return Task.CompletedTask;
